@@ -9,17 +9,296 @@ output: html_document
 ##1.Importar data
 ```{r}
 library(readr)
-data_final <- read_csv("Documents/GitHub/proyecto_estadistica_angieynicole/data limpia/data_final.csv", show_col_types = FALSE)
+data_final <- read_csv("C:/Users/Michael Encalada/Documents/GitHub/Trabajos/proyecto_estadistica_angieynicole/data limpia/data_final.csv", show_col_types = FALSE)
+
 ```
-##2. 
+ 
 
 ```{r}
 str(data_final)
 ```
 
+Limpieza de variables 
 ```{r}
-summary(data_final)
+# Número total de NA por variable
+colSums(is.na(data_final))
+
 ```
+etiquetas
+
+```{r}
+library(dplyr)
+
+data_final <- data_final |>
+  mutate(
+    sexo   = factor(sexo),     # viene como "Hombre"/"Mujer" en texto
+    estciv = factor(estciv),   # valores numéricos, luego revisamos niveles
+    lengua = factor(lengua),
+    razest = factor(razest),
+    trabsp = factor(trabsp),   # viene como "Sí"/"No"
+    catocu = factor(catocu),   # valores numéricos (pero primero hay que ver cuáles)
+    tipcon = factor(tipcon),   # valores numéricos (primero revisar)
+    otrtra = factor(otrtra),   # viene como "Sí"/"No"
+    interh = factor(interh)    # viene como "Sí"/"No"
+  )
+
+```
+
+CREACIÓN DE VARIABLE DEPENDIENTE: 
+Variable de empleo formal
+
+Criterio: asalariado + contrato escrito + trabajó.
+
+1. Empleo 
+
+
+```{r}
+table(data_final$trabsp)
+prop.table(table(data_final$trabsp)) * 100
+```
+
+
+2. Tipo de ocupación
+
+```{r}
+data_final <- data_final |>
+  mutate(
+    catocu = factor(catocu,
+                    levels = 1:7,
+                    labels = c("Empleador", 
+                               "Independiente", 
+                               "Empleado",
+                               "Obrero",
+                               "Familiar_no_remunerado",
+                               "Trabajador_hogar",
+                               "Otro"))
+  )
+
+```
+
+```{r}
+table(data_final$catocu)
+prop.table(table(data_final$catocu)) * 100
+```
+
+
+3. Tipo de contrato
+
+```{r}
+data_final <- data_final |>
+  mutate(
+    tipcon = factor(
+      tipcon,
+      levels = 1:8,
+      labels = c(
+        "Indefinido_permanente",
+        "Plazo_fijo",
+        "Periodo_prueba",
+        "Convenio_practicas",
+        "Locacion_SNP",
+        "CAS",
+        "Sin_contrato",
+        "Otro"
+      )
+    )
+  )
+
+```
+
+```{r}
+table(data_final$tipcon)
+prop.table(table(data_final$tipcon)) * 100
+```
+
+
+Crear variable de empleo formal 
+
+```{r}
+data_final <- data_final |>
+  mutate(
+    trabajo_formal = case_when(
+      trabsp == "Sí" & tipcon %in% c("Contrato indefinido / permanente",
+                                     "Contrato a plazo fijo",
+                                     "Periodo de prueba",
+                                     "Prácticas / convenios",
+                                     "Locación de servicios",
+                                     "CAS") ~ 1,
+      trabsp == "Sí" & tipcon %in% c("Sin contrato", "Otro") ~ 0,
+      trabsp == "No" ~ 0,
+      TRUE ~ NA_real_
+    )
+  )
+
+```
+
+```{r}
+table(data_final$trabajo_formal)
+prop.table(table(data_final$trabajo_formal)) * 100
+```
+
+```{r}
+library(dplyr)
+
+# 1) Mostrar niveles reales de tipcon y tabla cruzada (revisión)
+cat("Niveles de tipcon:\n"); print(levels(data_final$tipcon))
+cat("\nTabla trabsp x tipcon (resumen):\n")
+print(with(data_final, table(trabsp, tipcon, useNA = "ifany")))
+
+# 2) Intento de extraer códigos numéricos si tipcon conserva números en texto
+# (esto no sobrescribe la variable original)
+tipcon_num_try <- suppressWarnings(as.numeric(as.character(data_final$tipcon)))
+prop_na_num <- mean(is.na(tipcon_num_try))
+cat("\nProporción NA al intentar convertir tipcon a num:", round(prop_na_num,3), "\n\n")
+
+# 3) Recodificación robusta: usamos patrones en etiquetas y también números si existen
+formal_pattern <- "(Indefinido|Indefinido_permanente|Plazo|Periodo_prueba|Prueba|Convenio|Practicas|Locacion|Locación|Honor|SNP|CAS)"
+sin_pattern   <- "(Sin|Sin_contrato|Sin contrato|Sin_contrato|Sin_contrat)"
+
+data_final <- data_final %>%
+  mutate(
+    # si tipcon es numérico real (1..8) lo usamos; si no, usamos coincidencias por texto
+    tipcon_num = ifelse(!is.na(tipcon_num_try), tipcon_num_try, NA_real_),
+
+    trabajo_formal_v2 = case_when(
+      # caso A: trabajó y tipcon numérico indica formal (1-6)
+      trabsp == "Sí" & tipcon_num %in% 1:6 ~ 1,
+
+      # caso B: trabajó y tipcon es texto que coincide con patrón formal
+      trabsp == "Sí" & grepl(formal_pattern, as.character(tipcon), ignore.case = TRUE) ~ 1,
+
+      # trabajó y tipcon indica sin contrato u 'Otro' (texto o número 7/8) => informal
+      trabsp == "Sí" & (tipcon_num %in% c(7,8) |
+                        grepl(sin_pattern, as.character(tipcon), ignore.case = TRUE) |
+                        grepl("Otro", as.character(tipcon), ignore.case = TRUE)) ~ 0,
+
+      # Si no trabajó, dejamos NA (no es ocupado)
+      trabsp == "No" ~ NA_real_,
+
+      # si trabajó pero tipcon es NA -> dejar NA (no tenemos info)
+      trabsp == "Sí" & is.na(tipcon) ~ NA_real_,
+
+      TRUE ~ NA_real_
+    )
+  )
+
+# 4) Convertir a factor con etiquetas legibles
+data_final <- data_final %>%
+  mutate(
+    trabajo_formal_v2 = factor(trabajo_formal_v2, levels = c(0,1),
+                               labels = c("Informal","Formal"))
+  )
+
+# 5) Revisar resultados
+cat("\nTabla trabajo_formal_v2 (conteos):\n")
+print(table(data_final$trabajo_formal_v2, useNA = "ifany"))
+
+cat("\nPorcentajes (sobre totales con NA mostrados):\n")
+print(prop.table(table(data_final$trabajo_formal_v2, useNA = "ifany"))*100)
+
+# 6) Tabla solo entre ocupados (trabsp == "Sí") para validar
+cat("\nTabla entre ocupados (trabsp == 'Sí'):\n")
+print(with(subset(data_final, trabsp == "Sí"), table(trabajo_formal_v2, useNA = "ifany")))
+print(prop.table(with(subset(data_final, trabsp == "Sí"), table(trabajo_formal_v2, useNA = "ifany")))*100)
+
+```
+
+Dejar NA como “Información insuficiente” 
+
+```{r}
+data_final$trabajo_formal_final <- data_final$trabajo_formal_v2
+```
+
+Grafico 
+
+Entre los ocupados 
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# Filtrar solo ocupados
+ocupados <- data_final %>%
+  filter(trabsp == "Sí")
+
+# Tabla con porcentajes
+df_plot <- ocupados %>%
+  count(trabajo_formal_final) %>%
+  mutate(pct = n / sum(n) * 100)
+
+# Gráfico
+ggplot(df_plot, aes(x = trabajo_formal_final, y = pct, fill = trabajo_formal_final)) +
+  geom_col(width = 0.7, show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(pct, 1), "%")),
+            vjust = -0.5, size = 5) +
+  scale_y_continuous(
+    labels = scales::percent_format(scale = 1),
+    limits = c(0, 60)  # Ajuste a >50
+  ) +
+  labs(
+    title = "Condición de formalidad laboral entre jóvenes ocupados",
+    x = "Condición laboral",
+    y = "Porcentaje"
+  ) +
+  theme_minimal(base_size = 14)
+```
+
+
+
+proporcion 
+```{r}
+summary(data_final$catocu)
+summary(data_final$tipcon)
+summary(data_final$estciv)
+summary(data_final$lengua)
+summary(data_final$estciv)
+summary(data_final$razest)
+summary(data_final$otrtra)
+summary(data_final$interh)
+```
+
+
+Revisar niveles 
+
+```{r}
+unique_values <- list(
+  sexo        = unique(data_final$sexo),
+  estciv      = unique(data_final$estciv),
+  lengua      = unique(data_final$lengua),
+  razest      = unique(data_final$razest),
+  trabsp      = unique(data_final$trabsp),
+  catocu      = unique(data_final$catocu),
+  tipcon      = unique(data_final$tipcon),
+  otrtra      = unique(data_final$otrtra),
+  interh      = unique(data_final$interh)
+)
+
+unique_values
+
+```
+
+
+
+
+
+
+```{r}
+data_final <- data_final |>
+  mutate(
+    formal = case_when(
+      trabsp == "Sí" &
+        catocu == "Empleado/obrero" &
+        tipcon %in% c("Indefinido","Temporal") ~ 1,
+      trabsp == "Sí" ~ 0,
+      TRUE ~ NA
+    ),
+    formal = factor(formal, levels = c(0,1), labels = c("Informal","Formal"))
+  )
+
+```
+
+
+
+Variable Jóvenes: EDAD
 
 ```{r}
 summary(data_final$edad)
@@ -27,10 +306,6 @@ summary(data_final$edad)
 
 
 ```{r}
-hist(data_final$edad)
-```
-
-```{r}
 hist(data_final$edad,
      main = "Distribución de la edad",
      xlab = "Edad (años)",
@@ -40,36 +315,270 @@ hist(data_final$edad,
 
 ```
 
+VARIABLE DEPENDIENTE 
+
+```{r}
+table(data_final$trabsp)
+prop.table(table(data_final$trabsp)) * 100
+
+```
+
+grafico 
+
+```{r}
+# 6) Tabla solo entre ocupados (trabsp == "Sí") para validar
+cat("\nTabla entre ocupados (trabsp == 'Sí'):\n")
+print(with(subset(data_final, trabsp == "Sí"), table(trabajo_formal_v2, useNA = "ifany")))
+print(prop.table(with(subset(data_final, trabsp == "Sí"), table(trabajo_formal_v2, useNA = "ifany")))*100)
+```
 
 
+PRINCIPAL INDEPEDIENTE 
+
+Acceso a internet 
+
+```{r}
+table(data_final$interh)
+prop.table(table(data_final$interh)) * 100
+```
+
+grafico 
 ```{r}
 library(ggplot2)
+library(dplyr)
 
-p <- ggplot(data_final, aes(x = edad)) +
-  geom_histogram(binwidth = 5, fill = "steelblue", color = "white") +
+# Calcular porcentajes
+df_plot <- data_final %>%
+  count(interh) %>%
+  mutate(porc = round(100 * n / sum(n), 1))
+
+# Gráfico
+ggplot(df_plot, aes(x = interh, y = porc)) +
+  geom_col(fill = "#4D7EA8") +
+  geom_text(aes(label = paste0(porc, "%")),
+            vjust = -0.5, size = 5) +
   labs(
-    title = "Distribución de la edad",
-    x = "Edad (años)",
-    y = "Frecuencia"
+    title = "Acceso a Internet en el hogar",
+    x = "Acceso",
+    y = "Porcentaje (%)"
   ) +
-  theme_minimal()
-
-ggsave("histograma_edad.png", plot = p, width = 8, height = 6, dpi = 300)
+  ylim(0, max(df_plot$porc) + 10) +   # espacio para texto
+  theme_minimal(base_size = 14)
 ```
 
 
+
+
+
+MODELO DE ASOCIACION 
 
 
 ```{r}
-png("hist_edad.png", width = 800, height = 600)
-
-hist(data_final$edad,
-     main = "Distribución de la edad",
-     xlab = "Edad (años)",
-     ylab = "Frecuencia",
-     col = "lightblue",
-     border = "white")
+#ejemplo sexo
+table(data_final$trabsp, data_final$interh)
+chisq.test(data_final$trabsp, data_final$interh)
 ```
+Existe una asociación estadísticamente significativa entre haber trabajado la semana pasada (trabsp) y tener acceso a Internet en el hogar (interh).
+
+En otras palabras, la probabilidad de trabajar no es independiente del acceso a Internet.
+
+
+1. Asociación entre trabsp y otras variables categóricas (chi-cuadrado)
+
+```{r}
+#ejemplo sexo
+table(data_final$trabsp, data_final$sexo)
+chisq.test(data_final$trabsp, data_final$sexo)
+
+```
+
+```{r}
+#Para varias
+
+vars_cat <- c("sexo", "interh", "otrtra", "catocu")
+
+for (v in vars_cat) {
+  print(v)
+  print(chisq.test(data_final$trabsp, data_final[[v]]))
+}
+
+
+```
+
+CORRELACIONES (solo con numéricas)
+
+```{r}
+# seleccionamos solo numéricas, como edad, ultani:
+
+vars_num <- data_final |> dplyr::select(edad, ultani)
+
+cor(vars_num, use="pairwise.complete.obs")
+
+```
+
+correlación de Spearman:
+
+```{r}
+cor(vars_num, method = "spearman", use="complete.obs")
+
+```
+
+
+MODELO DE REGRESIÓN 
+
+
+Dado que trabsp es binaria, usamos regresión logística.
+
+Vaiable dicotomica 
+```{r}
+data_final$trabsp <- factor(data_final$trabsp, levels = c("No", "Sí"))
+
+```
+
+modelo básico 
+```{r}
+model1 <- glm(trabsp ~ sexo + edad + interh + ultani,
+              data = data_final,
+              family = binomial)
+
+summary(model1)
+
+```
+Obtener odds ratio
+
+```{r}
+exp(coef(model1))
+exp(confint(model1))
+
+```
+
+Modelo logístico ampliado
+
+```{r}
+model2 <- glm(trabsp ~ sexo + edad + estciv + lengua +
+                interh + ultani + catocu + otrtra,
+              data = data_final,
+              family = binomial)
+
+summary(model2)
+
+```
+
+
+ANALISIS FACTORIAL (PCA o MCA)
+
+PCA para numéricas
+```{r}
+num_data <- data_final |> select(edad, ultani) |> scale()
+
+pca <- prcomp(num_data, scale. = TRUE)
+summary(pca)
+plot(pca)
+
+```
+
+
+MCA para categóricas (muy útil para ENAHO)
+
+```{r}
+library(FactoMineR)
+library(factoextra)
+
+mca <- MCA(data_final[, c("trabsp", "sexo", "interh", "otrtra", "catocu")], graph = FALSE)
+
+fviz_mca_biplot(mca)
+
+```
+
+
+CLUSTERIZACIÖN 
+
+Preparar datos
+
+```{r}
+cluster_data <- data_final |> 
+  dplyr::select(edad, ultani) |> 
+  na.omit() |> 
+  scale()
+
+```
+
+Determinar número óptimo de clusters
+```{r}
+library(factoextra)
+
+fviz_nbclust(cluster_data, kmeans, method = "wss")
+
+```
+
+Ejecutar k-means
+```{r}
+set.seed(123)
+km <- kmeans(cluster_data, centers = 3, nstart = 25)
+
+km$cluster
+
+```
+
+
+Visualización
+
+```{r}
+fviz_cluster(km, data = cluster_data)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
