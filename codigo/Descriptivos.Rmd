@@ -690,6 +690,71 @@ empleo_mv$cluster <- factor(clusters)
 ```
 
 
+```{r}
+library(tidyr)
+
+vars_mca <- empleo_mv %>%
+  select(sexo_d, estciv_ord, dominio, lengua_cat, ultani_cat) %>%
+  drop_na()
+
+```
+
+
+```{r}
+# Seleccionar variables del MCA
+vars_mca <- empleo_mv %>%
+  select(sexo_d, estciv_ord, dominio, lengua_cat, ultani_cat) %>%
+  mutate(across(everything(), as.factor))
+
+```
+
+
+```{r}
+empleo_mv_clean <- empleo_mv %>% 
+  drop_na(sexo_d, estciv_ord, dominio, lengua_cat, ultani_cat)
+
+```
+
+
+```{r}
+mca_res <- dudi.acm(vars_mca, scannf = FALSE, nf = 5)
+
+```
+
+
+```{r}
+mca_res
+```
+
+
+
+```{r}
+coords <- mca_res$li[, 1:5]
+dist_mca <- dist(scale(coords))
+hc <- hclust(dist_mca, method = "ward.D2")
+clusters <- cutree(hc, k = 3)
+
+empleo_mv_clean$cluster <- factor(clusters)
+
+```
+
+```{r}
+table(empleo_mv_clean$cluster)
+
+```
+
+```{r}
+library(ggplot2)
+
+df_plot <- data.frame(coords, cluster = factor(clusters))
+
+ggplot(df_plot, aes(Axis1, Axis2, color = cluster)) +
+  geom_point(alpha = 0.6) +
+  theme_minimal()
+
+```
+
+
 
 
 
