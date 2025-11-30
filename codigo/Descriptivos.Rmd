@@ -242,243 +242,477 @@ ggplot(df_plot, aes(x = trabajo_formal_final, y = pct, fill = trabajo_formal_fin
   theme_minimal(base_size = 14)
 ```
 
-
-
-proporcion 
-```{r}
-summary(data_final$catocu)
-summary(data_final$tipcon)
-summary(data_final$estciv)
-summary(data_final$lengua)
-summary(data_final$estciv)
-summary(data_final$razest)
-summary(data_final$otrtra)
-summary(data_final$interh)
-```
-
-
-Revisar niveles 
+SUBMUESTRA
 
 ```{r}
-unique_values <- list(
-  sexo        = unique(data_final$sexo),
-  estciv      = unique(data_final$estciv),
-  lengua      = unique(data_final$lengua),
-  razest      = unique(data_final$razest),
-  trabsp      = unique(data_final$trabsp),
-  catocu      = unique(data_final$catocu),
-  tipcon      = unique(data_final$tipcon),
-  otrtra      = unique(data_final$otrtra),
-  interh      = unique(data_final$interh)
-)
-
-unique_values
+# Crear submuestra de ocupados
+empleo <- subset(data_final, trabsp == "Sí")
 
 ```
 
 
-
-
-
+VARIABLE INDEPENDIENTE 
 
 ```{r}
-data_final <- data_final |>
-  mutate(
-    formal = case_when(
-      trabsp == "Sí" &
-        catocu == "Empleado/obrero" &
-        tipcon %in% c("Indefinido","Temporal") ~ 1,
-      trabsp == "Sí" ~ 0,
-      TRUE ~ NA
-    ),
-    formal = factor(formal, levels = c(0,1), labels = c("Informal","Formal"))
-  )
-
+table(empleo$interh)
+prop.table(table(empleo$interh)) * 100
 ```
 
 
+grafico
 
-Variable Jóvenes: EDAD
-
-```{r}
-summary(data_final$edad)
-```
-
-
-```{r}
-hist(data_final$edad,
-     main = "Distribución de la edad",
-     xlab = "Edad (años)",
-     ylab = "Frecuencia",
-     col = "lightblue",
-     border = "white")
-
-```
-
-VARIABLE DEPENDIENTE 
-
-```{r}
-table(data_final$trabsp)
-prop.table(table(data_final$trabsp)) * 100
-
-```
-
-grafico 
-
-```{r}
-# 6) Tabla solo entre ocupados (trabsp == "Sí") para validar
-cat("\nTabla entre ocupados (trabsp == 'Sí'):\n")
-print(with(subset(data_final, trabsp == "Sí"), table(trabajo_formal_v2, useNA = "ifany")))
-print(prop.table(with(subset(data_final, trabsp == "Sí"), table(trabajo_formal_v2, useNA = "ifany")))*100)
-```
-
-
-PRINCIPAL INDEPEDIENTE 
-
-Acceso a internet 
-
-```{r}
-table(data_final$interh)
-prop.table(table(data_final$interh)) * 100
-```
-
-grafico 
 ```{r}
 library(ggplot2)
 library(dplyr)
 
-# Calcular porcentajes
-df_plot <- data_final %>%
+# Calcular porcentajes solo entre ocupados
+df_plot <- empleo %>%
   count(interh) %>%
   mutate(porc = round(100 * n / sum(n), 1))
 
-# Gráfico
+# Gráfico actualizado
 ggplot(df_plot, aes(x = interh, y = porc)) +
   geom_col(fill = "#4D7EA8") +
   geom_text(aes(label = paste0(porc, "%")),
             vjust = -0.5, size = 5) +
   labs(
-    title = "Acceso a Internet en el hogar",
+    title = "Acceso a Internet en el hogar (jóvenes con empleo)",
     x = "Acceso",
     y = "Porcentaje (%)"
   ) +
   ylim(0, max(df_plot$porc) + 10) +   # espacio para texto
   theme_minimal(base_size = 14)
+
 ```
 
+ANALISIS BIVARIADO 
+
+```{r}
+library(dplyr)
+library(ggplot2)
 
 
+# Filtrar solo casos sin NA en las dos variables
+empleo_biv <- empleo %>%
+  filter(!is.na(interh) & !is.na(trabajo_formal_v2))
 
 
-MODELO DE ASOCIACION 
+# Tabla de contingencia
+tabla_biv <- table(empleo_biv$trabajo_formal_v2, empleo_biv$interh)
+tabla_biv
+
+# Porcentajes sobre el total de ocupados
+prop.table(tabla_biv, margin = 2) * 100   # Porcentaje dentro de cada nivel de interh
+prop.table(tabla_biv) * 100               # Porcentaje sobre total
+
+
+```
+```{r}
+# Gráfico bivariado: barras apiladas
+df_biv <- empleo_biv %>%
+  group_by(interh, trabajo_formal_v2) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(porc = round(100 * n / sum(n), 1))
+
+ggplot(df_biv, aes(x = interh, y = porc, fill = trabajo_formal_v2)) +
+  geom_col() +
+  geom_text(aes(label = paste0(porc, "%")), 
+            position = position_stack(vjust = 0.5), size = 4) +
+  labs(
+    title = "Empleo formal vs. acceso a internet en el hogar",
+    x = "Acceso a internet en el hogar",
+    y = "Porcentaje (%)",
+    fill = "Tipo de empleo"
+  ) +
+  theme_minimal(base_size = 14)
+
+```
+Realizar chi cuadrado 
+
+```{r}
+# Tabla de contingencia
+tabla_biv <- table(empleo_biv$trabajo_formal_v2, empleo_biv$interh)
+
+# Test de chi-cuadrado
+chi_test <- chisq.test(tabla_biv)
+chi_test
+
+```
 
 
 ```{r}
-#ejemplo sexo
-table(data_final$trabsp, data_final$interh)
-chisq.test(data_final$trabsp, data_final$interh)
+# ver los residuos estandarizados
+
+chi_test$stdres
+
 ```
-Existe una asociación estadísticamente significativa entre haber trabajado la semana pasada (trabsp) y tener acceso a Internet en el hogar (interh).
 
-En otras palabras, la probabilidad de trabajar no es independiente del acceso a Internet.
+Extra 
+Analisis bivariado con las otras variables 
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Filtrar solo casos completos (sin NA en las variables de interés)
+biv_data <- empleo_mod %>%
+  filter(!is.na(trabajo_formal_v2),
+         !is.na(interh),
+         !is.na(dominio),
+         !is.na(sexo_d),
+         !is.na(estciv_ord),
+         !is.na(lengua_cat),
+         !is.na(ultani_cat))
+
+# 1) Acceso a internet (interh)
+tabla_internet <- table(biv_data$trabajo_formal_v2, biv_data$interh)
+prop.table(tabla_internet, margin = 2) * 100  # Porcentaje dentro de cada nivel de interh
+
+# 2) Dominio geográfico
+tabla_dominio <- table(biv_data$trabajo_formal_v2, biv_data$dominio)
+prop.table(tabla_dominio, margin = 2) * 100
+
+# 3) Sexo
+tabla_sexo <- table(biv_data$trabajo_formal_v2, biv_data$sexo_d)
+prop.table(tabla_sexo, margin = 2) * 100
+
+# 4) Estado civil
+tabla_estciv <- table(biv_data$trabajo_formal_v2, biv_data$estciv_ord)
+prop.table(tabla_estciv, margin = 2) * 100
+
+# 5) Lengua materna
+tabla_lengua <- table(biv_data$trabajo_formal_v2, biv_data$lengua_cat)
+prop.table(tabla_lengua, margin = 2) * 100
+
+# 6) Último año de estudio
+tabla_ultani <- table(biv_data$trabajo_formal_v2, biv_data$ultani_cat)
+prop.table(tabla_ultani, margin = 2) * 100
+
+```
 
 
-1. Asociación entre trabsp y otras variables categóricas (chi-cuadrado)
+
+
+ANALISIS MULTIVARIADO 
+
+primero, preperar las otras variables 
 
 ```{r}
-#ejemplo sexo
-table(data_final$trabsp, data_final$sexo)
-chisq.test(data_final$trabsp, data_final$sexo)
+library(dplyr)
+
+# Copiar data para no modificar la original
+empleo_mod <- empleo
+
+# 1) Dominio geográfico: volver categórica con etiquetas
+empleo_mod <- empleo_mod %>%
+  mutate(
+    dominio = factor(dominio,
+                     levels = 1:8,
+                     labels = c("Costa Norte","Costa Centro","Costa Sur",
+                                "Sierra Norte","Sierra Centro","Sierra Sur",
+                                "Selva","Lima Metropolitana"))
+  )
+
+# 2) Sexo: dicotómica (1 mujer, 0 hombre)
+empleo_mod <- empleo_mod %>%
+  mutate(
+    sexo_d = ifelse(sexo == "Mujer", 1,
+                    ifelse(sexo == "Hombre", 0, NA))
+  )
+
+# 3) Estado civil: categórica ordinal, unir viudo y divorciado
+empleo_mod <- empleo_mod %>%
+  mutate(
+    estciv_ord = case_when(
+      estciv %in% c(6) ~ "Soltero",
+      estciv == 5 ~ "Separado",
+      estciv == 1 ~ "Conviviente",
+      estciv == 2 ~ "Casado",
+      estciv %in% c(3,4) ~ "Viudo/Divorciado",
+      TRUE ~ NA_character_
+    ),
+    estciv_ord = factor(estciv_ord,
+                        levels = c("Soltero","Separado","Conviviente","Casado","Viudo/Divorciado"),
+                        ordered = TRUE)
+  )
+
+# 4) Lengua materna: categórica ordinal, cambios especiales
+empleo_mod <- empleo_mod %>%
+  mutate(
+    lengua_cat = case_when(
+      lengua %in% c(1) ~ "Quechua",
+      lengua %in% c(2) ~ "Aymara",
+      lengua %in% c(3) ~ "Otra lengua nativa",
+      lengua %in% c(4) ~ "Castellano",
+      lengua %in% c(6,7) ~ "Extranjera",
+      lengua == 8 ~ "Discapacidad",
+      lengua %in% c(9,99) ~ NA_character_,
+      TRUE ~ "Otro"
+    ),
+    lengua_cat = factor(lengua_cat,
+                        levels = c("Quechua","Aymara","Otra lengua nativa",
+                                   "Castellano","Extranjera","Discapacidad","Otro"),
+                        ordered = TRUE)
+  )
+
+# 5) Último año de estudio: categórica ordinal con etiquetas y ajustes
+empleo_mod <- empleo_mod %>%
+  mutate(
+    ultani_cat = case_when(
+      ultani == 1 ~ "Sin nivel",
+      ultani %in% c(2,12) ~ "Educación Inicial",
+      ultani == 3 ~ "Primaria incompleta",
+      ultani == 4 ~ "Primaria completa",
+      ultani == 5 ~ "Secundaria incompleta",
+      ultani == 6 ~ "Secundaria completa",
+      ultani == 7 ~ "Superior no universitaria incompleta",
+      ultani == 8 ~ "Superior no universitaria completa",
+      ultani == 9 ~ "Superior universitaria incompleta",
+      ultani == 10 ~ "Superior universitaria completa",
+      ultani == 11 ~ "Postgrado universitario",
+      ultani %in% c(99) ~ NA_character_,
+      TRUE ~ "Otro"
+    ),
+    ultani_cat = factor(ultani_cat,
+                        levels = c("Sin nivel","Educación Inicial","Primaria incompleta",
+                                   "Primaria completa","Secundaria incompleta","Secundaria completa",
+                                   "Superior no universitaria incompleta","Superior no universitaria completa",
+                                   "Superior universitaria incompleta","Superior universitaria completa",
+                                   "Postgrado universitario","Otro"),
+                        ordered = TRUE)
+  )
+
+# Revisar cambios
+str(empleo_mod)
 
 ```
+
+
+
 
 ```{r}
-#Para varias
+library(dplyr)
+library(broom)
 
-vars_cat <- c("sexo", "interh", "otrtra", "catocu")
+# Filtrar solo casos completos para las variables que vamos a usar
+empleo_mv <- empleo_mod %>%
+  select(trabajo_formal_v2, interh, sexo_d, edad, estciv_ord, dominio, lengua_cat, ultani_cat) %>%
+  filter(!is.na(trabajo_formal_v2) &
+         !is.na(interh) &
+         !is.na(sexo_d) &
+         !is.na(estciv_ord) &
+         !is.na(dominio) &
+         !is.na(lengua_cat) &
+         !is.na(ultani_cat))
 
-for (v in vars_cat) {
-  print(v)
-  print(chisq.test(data_final$trabsp, data_final[[v]]))
-}
+# Regresión logística
+modelo_logit <- glm(trabajo_formal_v2 ~ interh + sexo_d + edad + estciv_ord + dominio + lengua_cat + ultani_cat,
+                    data = empleo_mv,
+                    family = binomial(link = "logit"))
 
+# Resumen del modelo
+summary(modelo_logit)
 
 ```
 
-CORRELACIONES (solo con numéricas)
 
 ```{r}
-# seleccionamos solo numéricas, como edad, ultani:
+# Odds ratios y intervalos de confianza
+exp(cbind(OddsRatio = coef(modelo_logit), confint(modelo_logit)))
 
-vars_num <- data_final |> dplyr::select(edad, ultani)
-
-cor(vars_num, use="pairwise.complete.obs")
+# Tabla resumida con broom (opcional)
+library(broom)
+tidy(modelo_logit, exponentiate = TRUE, conf.int = TRUE)
 
 ```
 
-correlación de Spearman:
+
+Graficar 
 
 ```{r}
-cor(vars_num, method = "spearman", use="complete.obs")
+library(dplyr)
+library(broom)
+library(ggplot2)
+
+# Extraer tabla con coeficientes, OR y CI
+modelo_tidy <- tidy(modelo_logit, exponentiate = TRUE, conf.int = TRUE)
+
+# Filtrar solo significativos (p < 0.05)
+modelo_sig <- modelo_tidy %>%
+  filter(p.value < 0.05 & term != "(Intercept)")
+
+# Ver resultados
+modelo_sig
+
 
 ```
 
-
-MODELO DE REGRESIÓN 
-
-
-Dado que trabsp es binaria, usamos regresión logística.
-
-Vaiable dicotomica 
-```{r}
-data_final$trabsp <- factor(data_final$trabsp, levels = c("No", "Sí"))
-
-```
-
-modelo básico 
-```{r}
-model1 <- glm(trabsp ~ sexo + edad + interh + ultani,
-              data = data_final,
-              family = binomial)
-
-summary(model1)
-
-```
-Obtener odds ratio
 
 ```{r}
-exp(coef(model1))
-exp(confint(model1))
+# Gráfico de odds ratios con intervalos de confianza
+ggplot(modelo_sig, aes(x = reorder(term, estimate), y = estimate)) +
+  geom_point(size = 3, color = "#4D7EA8") +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2, color = "#4D7EA8") +
+  coord_flip() +
+  labs(
+    title = "Variables significativos",
+    x = "Variable",
+    y = "Odds Ratio (OR)",
+  ) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  theme_minimal(base_size = 14)
 
 ```
 
-Modelo logístico ampliado
 
-```{r}
-model2 <- glm(trabsp ~ sexo + edad + estciv + lengua +
-                interh + ultani + catocu + otrtra,
-              data = data_final,
-              family = binomial)
 
-summary(model2)
-
-```
 
 
 ANALISIS FACTORIAL (PCA o MCA)
 
-PCA para numéricas
-```{r}
-num_data <- data_final |> select(edad, ultani) |> scale()
 
-pca <- prcomp(num_data, scale. = TRUE)
-summary(pca)
-plot(pca)
+
+MCA para categóricas (muy útil para ENAHO)
+
+MCA (Análisis de Correspondencias Múltiples):
+
+Se aplica cuando las variables son categóricas o dicotómicas.
+
+Encuentra dimensiones que resumen las asociaciones entre categorías de varias variables.
+
+Ideal para tu caso, porque la mayoría de tus variables (sexo_d, estciv_ord, dominio, lengua_cat, ultani_cat) son categóricas.
+
+💡 Conclusión: En tu dataset, MCA es el más apropiado.
+
+
+
+```{r}
+# Instalar si no lo tienes
+# install.packages("FactoMineR")
+# install.packages("factoextra")
+
+library(FactoMineR)
+library(factoextra)
+
+# Seleccionar solo variables categóricas
+vars_mca <- empleo_mod %>%
+  select(sexo_d, estciv_ord, dominio, lengua_cat, ultani_cat)
+
+# Realizar MCA
+mca_res <- MCA(vars_mca, graph = FALSE)
+
+# Resumen de resultados
+summary(mca_res)
+
+
+```
+```{r}
+library(dplyr)
+library(ade4)
+
+# Seleccionar solo variables categóricas relevantes para el MCA
+vars_mca <- empleo_mod %>%
+  select(sexo_d, estciv_ord, dominio, lengua_cat, ultani_cat)
+
+# Asegurar que todas estén como factor
+vars_mca <- vars_mca %>% mutate(across(everything(), as.factor))
+
+# Ejecutar MCA (Análisis de Correspondencias Múltiples)
+mca_res <- dudi.acm(vars_mca, scannf = FALSE, nf = 5)
+
+# Resumen del MCA
+mca_res
 
 ```
 
 
-MCA para categóricas (muy útil para ENAHO)
+gráfico de individuos y de categorías
+
+```{r}
+# Gráfico de individuos
+plot(mca_res$li, main = "MCA - Individuos")
+```
+
+```{r}
+s.label(mca_res$li,
+        cpoint = 0.5,
+        clabel = 0,
+        sub = "MCA - Individuos",
+        csub = 2)
+
+```
+
+
+
+```{r}
+# Gráfico de categorías
+plot(mca_res$co, main = "MCA - Categorías")
+```
+```{r}
+# Gráfico de categorías
+
+s.label(mca_res$co, clabel = 1, sub = "MCA - Categorías")
+
+```
+
+
+CLUSTERIZACION 
+
+Clustering usando resultados del MCA
+```{r}
+# 1. Tomar coordenadas de individuos del MCA
+coords <- mca_res$li[, 1:5]   # usa 5 dimensiones, o las que decidas
+
+# 2. Escalar (opcional pero recomendable)
+coords_scaled <- scale(coords)
+
+# 3. Clustering jerárquico
+dist_mca <- dist(coords_scaled)
+hc <- hclust(dist_mca, method = "ward.D2")
+
+
+```
+
+
+```{r}
+# 4. Graficar dendrograma
+plot(hc, main = "Dendrograma - MCA + Ward")
+
+
+```
+
+
+```{r}
+# 5. Elegir número de clusters (ej. 3)
+clusters <- cutree(hc, k = 3)
+
+# 6. Añadir cluster al dataframe original
+empleo_mv$cluster <- factor(clusters)
+```
+
+
+
+
+
+```{r}
+# Visualización de individuos
+fviz_mca_ind(mca_res,
+             repel = TRUE,
+             habillage = NULL,   # se puede colorear por alguna variable, e.g. trabajo_formal_v2
+             palette = "jco")
+
+
+```
+
+```{r}
+# Visualización de variables
+fviz_mca_var(mca_res,
+             repel = TRUE,
+             palette = "jco")
+```
+
+
+
+
 
 ```{r}
 library(FactoMineR)
