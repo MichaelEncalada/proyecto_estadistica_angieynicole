@@ -226,13 +226,14 @@ df_plot <- ocupados %>%
   mutate(pct = n / sum(n) * 100)
 
 # Gráfico
-ggplot(df_plot, aes(x = trabajo_formal_final, y = pct, fill = trabajo_formal_final)) +
+
+p <- ggplot(df_plot, aes(x = trabajo_formal_final, y = pct, fill = trabajo_formal_final)) +
   geom_col(width = 0.7, show.legend = FALSE) +
   geom_text(aes(label = paste0(round(pct, 1), "%")),
             vjust = -0.5, size = 5) +
   scale_y_continuous(
     labels = scales::percent_format(scale = 1),
-    limits = c(0, 60)  # Ajuste a >50
+    limits = c(0, 60)  # Ajuste para mostrar hasta más de 50%
   ) +
   labs(
     title = "Condición de formalidad laboral entre jóvenes ocupados",
@@ -240,6 +241,18 @@ ggplot(df_plot, aes(x = trabajo_formal_final, y = pct, fill = trabajo_formal_fin
     y = "Porcentaje"
   ) +
   theme_minimal(base_size = 14)
+
+# Exportar la imagen
+ggsave(
+  filename = "grafico_formalidad_ocupados.png",
+  plot = p,
+  path = "C:/Users/Michael Encalada/Documents/GitHub/Trabajos/proyecto_estadistica_angieynicole/Imagenes",
+  width = 10,
+  height = 7,
+  dpi = 300
+)
+
+
 ```
 
 SUBMUESTRA
@@ -271,7 +284,7 @@ df_plot <- empleo %>%
   mutate(porc = round(100 * n / sum(n), 1))
 
 # Gráfico actualizado
-ggplot(df_plot, aes(x = interh, y = porc)) +
+p <- ggplot(df_plot, aes(x = interh, y = porc)) +
   geom_col(fill = "#4D7EA8") +
   geom_text(aes(label = paste0(porc, "%")),
             vjust = -0.5, size = 5) +
@@ -280,9 +293,18 @@ ggplot(df_plot, aes(x = interh, y = porc)) +
     x = "Acceso",
     y = "Porcentaje (%)"
   ) +
-  ylim(0, max(df_plot$porc) + 10) +   # espacio para texto
+  ylim(0, max(df_plot$porc) + 10) +
   theme_minimal(base_size = 14)
 
+# Exportar imagen
+ggsave(
+  filename = "grafico_internet_ocupados.png",
+  plot = p,
+  path = "C:/Users/Michael Encalada/Documents/GitHub/Trabajos/proyecto_estadistica_angieynicole/Imagenes",
+  width = 10,
+  height = 7,
+  dpi = 300
+)
 ```
 
 ANALISIS BIVARIADO 
@@ -314,7 +336,8 @@ df_biv <- empleo_biv %>%
   summarise(n = n(), .groups = "drop") %>%
   mutate(porc = round(100 * n / sum(n), 1))
 
-ggplot(df_biv, aes(x = interh, y = porc, fill = trabajo_formal_v2)) +
+# Crear gráfico
+p_biv <- ggplot(df_biv, aes(x = interh, y = porc, fill = trabajo_formal_v2)) +
   geom_col() +
   geom_text(aes(label = paste0(porc, "%")), 
             position = position_stack(vjust = 0.5), size = 4) +
@@ -325,6 +348,17 @@ ggplot(df_biv, aes(x = interh, y = porc, fill = trabajo_formal_v2)) +
     fill = "Tipo de empleo"
   ) +
   theme_minimal(base_size = 14)
+
+p_biv 
+# Exportar imagen
+ggsave(
+  filename = "bivariado_internet_formalidad.png",
+  plot = p_biv,
+  path = "C:/Users/Michael Encalada/Documents/GitHub/Trabajos/proyecto_estadistica_angieynicole/Imagenes",
+  width = 10,
+  height = 7,
+  dpi = 300
+)
 
 ```
 Realizar chi cuadrado 
@@ -549,17 +583,31 @@ modelo_sig
 
 ```{r}
 # Gráfico de odds ratios con intervalos de confianza
-ggplot(modelo_sig, aes(x = reorder(term, estimate), y = estimate)) +
+
+
+# Crear gráfico de OR
+p_or <- ggplot(modelo_sig, aes(x = reorder(term, estimate), y = estimate)) +
   geom_point(size = 3, color = "#4D7EA8") +
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2, color = "#4D7EA8") +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                width = 0.2, color = "#4D7EA8") +
   coord_flip() +
   labs(
-    title = "Variables significativos",
+    title = "Regresión logístico",
     x = "Variable",
-    y = "Odds Ratio (OR)",
+    y = "Odds Ratio (OR)"
   ) +
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
   theme_minimal(base_size = 14)
+
+# Exportar imagen
+ggsave(
+  filename = "odds_ratios_modelo.png",
+  plot = p_or,
+  path = "C:/Users/Michael Encalada/Documents/GitHub/Trabajos/proyecto_estadistica_angieynicole/Imagenes",
+  width = 10,
+  height = 7,
+  dpi = 300
+)
 
 ```
 
@@ -650,9 +698,31 @@ plot(mca_res$co, main = "MCA - Categorías")
 ```{r}
 # Gráfico de categorías
 
-s.label(mca_res$co, clabel = 1, sub = "MCA - Categorías")
+p_mca <- s.label(mca_res$co, clabel = 1, sub = "MCA - Categorías")
+
+
+
 
 ```
+
+
+```{r}
+library(ggplotify)
+
+# Convertir s.label() en objeto ggplot
+p_mca <- as.ggplot(function() s.label(mca_res$co, clabel = 1, sub = "MCA - Categorías"))
+
+# Exportar imagen
+ggsave(
+  filename = "mca_categorias.png",
+  plot = p_mca,
+  path = "C:/Users/Michael Encalada/Documents/GitHub/Trabajos/proyecto_estadistica_angieynicole/Imagenes",
+  width = 10,
+  height = 7,
+  dpi = 300
+)
+```
+
 
 
 CLUSTERIZACION 
@@ -745,87 +815,24 @@ table(empleo_mv_clean$cluster)
 
 ```{r}
 library(ggplot2)
-
 df_plot <- data.frame(coords, cluster = factor(clusters))
 
-ggplot(df_plot, aes(Axis1, Axis2, color = cluster)) +
+p_clusters <- ggplot(df_plot, aes(Axis1, Axis2, color = cluster)) +
   geom_point(alpha = 0.6) +
   theme_minimal()
 
-```
-
-
-
-
-
-```{r}
-# Visualización de individuos
-fviz_mca_ind(mca_res,
-             repel = TRUE,
-             habillage = NULL,   # se puede colorear por alguna variable, e.g. trabajo_formal_v2
-             palette = "jco")
-
+# Exportar imagen
+ggsave(
+  filename = "mca_clusters.png",
+  plot = p_clusters,
+  path = "C:/Users/Michael Encalada/Documents/GitHub/Trabajos/proyecto_estadistica_angieynicole/Imagenes",
+  width = 10,
+  height = 7,
+  dpi = 300
+)
 
 ```
 
-```{r}
-# Visualización de variables
-fviz_mca_var(mca_res,
-             repel = TRUE,
-             palette = "jco")
-```
-
-
-
-
-
-```{r}
-library(FactoMineR)
-library(factoextra)
-
-mca <- MCA(data_final[, c("trabsp", "sexo", "interh", "otrtra", "catocu")], graph = FALSE)
-
-fviz_mca_biplot(mca)
-
-```
-
-
-CLUSTERIZACIÖN 
-
-Preparar datos
-
-```{r}
-cluster_data <- data_final |> 
-  dplyr::select(edad, ultani) |> 
-  na.omit() |> 
-  scale()
-
-```
-
-Determinar número óptimo de clusters
-```{r}
-library(factoextra)
-
-fviz_nbclust(cluster_data, kmeans, method = "wss")
-
-```
-
-Ejecutar k-means
-```{r}
-set.seed(123)
-km <- kmeans(cluster_data, centers = 3, nstart = 25)
-
-km$cluster
-
-```
-
-
-Visualización
-
-```{r}
-fviz_cluster(km, data = cluster_data)
-
-```
 
 
 
