@@ -204,6 +204,8 @@ print(prop.table(with(subset(data_final, trabsp == "Sí"), table(trabajo_formal_
 
 Dejar NA como “Información insuficiente” 
 
+Submuestra:
+
 ```{r}
 data_final$trabajo_formal_final <- data_final$trabajo_formal_v2
 ```
@@ -242,6 +244,8 @@ p <- ggplot(df_plot, aes(x = trabajo_formal_final, y = pct, fill = trabajo_forma
   ) +
   theme_minimal(base_size = 14)
 
+p
+
 # Exportar la imagen
 ggsave(
   filename = "grafico_formalidad_ocupados.png",
@@ -264,7 +268,8 @@ empleo <- subset(data_final, trabsp == "Sí")
 ```
 
 
-VARIABLE INDEPENDIENTE 
+VARIABLE INDEPENDIENTE
+Acceso a internet
 
 ```{r}
 table(empleo$interh)
@@ -272,7 +277,7 @@ prop.table(table(empleo$interh)) * 100
 ```
 
 
-grafico
+grafico de acceos a internet
 
 ```{r}
 library(ggplot2)
@@ -295,6 +300,7 @@ p <- ggplot(df_plot, aes(x = interh, y = porc)) +
   ) +
   ylim(0, max(df_plot$porc) + 10) +
   theme_minimal(base_size = 14)
+p
 
 # Exportar imagen
 ggsave(
@@ -598,7 +604,7 @@ p_or <- ggplot(modelo_sig, aes(x = reorder(term, estimate), y = estimate)) +
   ) +
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
   theme_minimal(base_size = 14)
-
+p_or
 # Exportar imagen
 ggsave(
   filename = "odds_ratios_modelo.png",
@@ -820,6 +826,8 @@ df_plot <- data.frame(coords, cluster = factor(clusters))
 p_clusters <- ggplot(df_plot, aes(Axis1, Axis2, color = cluster)) +
   geom_point(alpha = 0.6) +
   theme_minimal()
+
+p_clusters 
 
 # Exportar imagen
 ggsave(
